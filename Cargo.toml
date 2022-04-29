@@ -1,0 +1,20 @@
+[package]
+name = "rc-storage"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Nathan ROYER <nathan.royer.pro@gmail.com>" ]
+description = "Web interface to mount and browse storage partitions"
+license = "MIT"
+keywords = ["storage", "linux", "partition"]
+repository = "https://github.com/NathanRoyer/rc-storage"
+readme = "README.md"
+
+[dependencies]
+actix-web = "4.0.1"
+actix-form-data = "0.6.2"
+temp-file = "0.1.7"
+futures-util = "0.3.17"
+actix-files = "0.6.0"
+urlencoding = "2.1.0"
+storage-list = "1.0.0"
+sys-mount = { version = "1.5.1", default-features = false }

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Index</title>
+		<script src="//cdnjs.cloudflare.com/ajax/libs/numeral.js/2.0.6/numeral.min.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
+		<style>
+html, body {
+	margin: 0;
+	background: #222;
+	color: #eee;
+	font-family: sans-serif;
+	font-size: 18;
+}
+
+:visited, :link, .button {
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.button:hover, :link:hover {
+	text-decoration: underline;
+}
+
+form {
+	display: none;
+}
+
+#table {
+	display: flex;
+	width: 100%;
+}
+#table > :first-child { flex-grow: 1; }
+#button-zone {
+	display: flex;
+	padding: 0;
+}
+#table > :last-child > * {
+	padding-right: 10px;
+}
+#table > * > *:not(#button-zone), #button-zone > * {
+	padding-left: 10px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	height: 20px;
+}
+#table > :not(:first-child) { text-align: right; }
+#table > * > :first-child { background: #159; }
+		</style>
+	</head>
+	<body onload="loaded()">
+		<form action="/_/upload" id="file-upload" method="post" enctype="multipart/form-data">
+			<input type="file" id="file-upload-button" name="file">
+			<input type="text" id="file-upload-path" name="path">
+			<input type="submit">
+		</form>
+		<form action="/_/delete" id="file-delete" method="post" enctype="multipart/form-data">
+			<input type="text" id="file-delete-path" name="path">
+			<input type="text" id="file-delete-entry" name="entry">
+			<input type="submit">
+		</form>
+		<form action="/_/rename" id="file-rename" method="post" enctype="multipart/form-data">
+			<input type="text" id="file-rename-path" name="path">
+			<input type="text" id="file-rename-src" name="src">
+			<input type="text" id="file-rename-dst" name="dst">
+			<input type="submit">
+		</form>
+		<form id="mount-form" method="post" enctype="multipart/form-data">
+			<input type="text" id="mount-partition" name="partition">
+			<input type="submit">
+		</form>
+		<script>
+let directory_data = "REPLACED".split(';').map(line => line.split(',').map(decodeURIComponent));
+let mode;
+
+function el(tag, props, children) {
+	let element = document.createElement(tag);
+	for (let k in props) {
+		element[k] = props[k];
+	}
+	for (let i in children) {
+		element.appendChild(children[i]);
+	}
+	return element;
+}
+
+function find(id) {
+	return document.getElementById(id);
+}
+
+function date(secs) {
+	let s = parseInt(secs);
+	if (s.toString() == secs) {
+		let d = new Date(secs * 1000);
+		return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+	} else {
+		return "";
+	}
+}
+
+function getCurrentPath() {
+	return decodeURIComponent(document.location.pathname.substring(1));
+}
+
+function getEntry(index) {
+	let link = find('table').children[0].children[1 + parseInt(index)].children[0];
+	return link.innerText;
+}
+
+function fileSelected() {
+	find('file-upload-path').value = getCurrentPath();
+	find('file-upload').submit();
+}
+
+function deleteClicked(event) {
+	if (confirm('Please confirm the removal.')) {
+		let index = event.target.childIndex;
+		find('file-delete-path').value = getCurrentPath();
+		find('file-delete-entry').value = getEntry(index);
+		find('file-delete').submit();
+	}
+}
+
+function renameClicked(event) {
+	let index = event.target.childIndex;
+	let src = getEntry(index);
+	let dst = prompt('Enter a new name:', src);
+	if (dst) {
+		find('file-rename-path').value = getCurrentPath();
+		find('file-rename-src').value = src;
+		find('file-rename-dst').value = dst;
+		find('file-rename').submit();
+	}
+}
+
+function mountClicked(event) {
+	let index = event.target.childIndex;
+	find('mount-partition').value = getEntry(index);
+	find('mount-form').action = '/_/mount';
+	find('mount-form').submit();
+}
+
+function unmountClicked(event) {
+	let index = event.target.childIndex;
+	find('mount-partition').value = getEntry(index);
+	find('mount-form').action = '/_/unmount';
+	find('mount-form').submit();
+}
+
+function unmountBrowsedPartition(_event) {
+	let part = document.location.pathname.split('/')[1];
+	find('mount-partition').value = decodeURIComponent(part);
+	find('mount-form').action = '/_/unmount';
+	find('mount-form').submit();
+}
+
+function loaded() {
+	mode = directory_data.shift();
+	console.log(mode);
+	find('file-upload-button').addEventListener('input', fileSelected);
+	reloadTable();
+}
+
+function sortClicked(event) {
+	document.location = event.target.href;
+	reloadTable();
+}
+
+function reloadTable() {
+	let table = find('table');
+	if (table) table.remove();
+	if (document.location.hash.startsWith('#sort-')) {
+		let sortProp = parseInt(document.location.hash.substring(6));
+		directory_data.sort((a, b) => {
+			let aProp = a[sortProp];
+			let bProp = b[sortProp];
+			aProp = isNaN(aProp) ? aProp : parseInt(aProp);
+			bProp = isNaN(bProp) ? bProp : parseInt(bProp);
+			return aProp === bProp ? 0 : (aProp < bProp ? -1 : 1);
+		});
+	}
+	if (mode == 'overview') {
+		let table = el('div', { id: 'table' }, [
+			el('div', {}, [ el('div', { 'innerText': 'Partition' }) ]),
+			el('div', {}, [ el('div', { 'innerText': 'Capacity' }) ]),
+			el('div', {}, [ el('div', { 'innerText': 'Action' }) ]),
+			el('div', {}, [ el('div', { 'innerText': 'RO/RW' }) ]),
+		]);
+		document.body.appendChild(table);
+		let columns = table.children;
+		for (let i in directory_data) {
+			let row = directory_data[i];
+
+			let mounted = row[2] === '1';
+			let readOnly = row[3] === '1';
+
+			columns[0].appendChild(el('div', {}, [
+				el('a', {
+					'innerText': row[0],
+					'href': mounted ? encodeURIComponent(row[0]) : '',
+				})
+			]));
+			columns[1].appendChild(el('div', { 'innerText': numeral(row[1]).format('0.0b') }));
+
+			let actionButton = el('div', {
+				'innerText': mounted ? 'Unmount' : "Mount",
+				'className': 'button',
+				'childIndex': i
+			});
+			actionButton.addEventListener('click', mounted ? unmountClicked : mountClicked);
+			columns[2].appendChild(actionButton);
+			columns[3].appendChild(el('div', { 'innerText': readOnly ? "RO" : "RW" }));
+		}
+	} else {
+		let uploadButton = el('div', { 'innerText': 'Upload' });
+		uploadButton.addEventListener('click', () => find('file-upload-button').click());
+		uploadButton.classList.add('button');
+
+		let unmountButton = el('div', { 'innerText': 'Unmount' });
+		unmountButton.addEventListener('click', unmountBrowsedPartition);
+		unmountButton.classList.add('button');
+
+		let sortByLastMod = el('a', { 'innerText': 'Last Modification', 'href': '#sort-1' });
+		sortByLastMod.addEventListener('click', sortClicked);
+
+		let sortByWeight = el('a', { 'innerText': 'Weight', 'href': '#sort-2' });
+		sortByWeight.addEventListener('click', sortClicked);
+
+		let table = el('div', { id: 'table' }, [
+			el('div', {}, [ el('div', { id: 'button-zone' }, [
+				el('a', { 'innerText': 'Go Back', 'href': '..' }),
+				unmountButton,
+				uploadButton,
+			]) ]),
+			el('div', {}, [ el('div', {}, [ sortByLastMod ]) ]),
+			el('div', {}, [ el('div', {}, [ sortByWeight ]) ]),
+			el('div', {}, [ el('div', { 'innerText': 'Delete' }) ]),
+			el('div', {}, [ el('div', { 'innerText': 'Rename' }) ]),
+		]);
+		document.body.appendChild(table);
+		let columns = table.children;
+		for (let i in directory_data) {
+			let row = directory_data[i];
+			columns[0].appendChild(el('div', {}, [
+				el('a', {
+					'innerText': row[0],
+					'href': encodeURIComponent(row[0]),
+				})
+			]));
+			columns[1].appendChild(el('div', { 'innerText': date(row[1]) }));
+			columns[2].appendChild(el('div', { 'innerText': numeral(row[2]).format('0.0b') }));
+
+			let deleteButton = el('div', { 'innerText': 'Delete', 'className': 'button', 'childIndex': i });
+			deleteButton.addEventListener('click', deleteClicked);
+			columns[3].appendChild(deleteButton);
+
+			let renameButton = el('div', { 'innerText': 'Rename', 'className': 'button', 'childIndex': i });
+			renameButton.addEventListener('click', renameClicked);
+			columns[4].appendChild(renameButton);
+		}
+	}
+}
+		</script>
+	</body>
+</html>
